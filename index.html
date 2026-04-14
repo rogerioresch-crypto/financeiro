@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contas Recorrentes</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f0f2f5;
+      color: #1a1a2e;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1a1a2e;
+      color: white;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header h1 { font-size: 1.2rem; font-weight: 600; }
+
+    .month-nav {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 0.95rem;
+    }
+
+    .month-nav button {
+      background: none;
+      border: 1px solid rgba(255,255,255,0.3);
+      color: white;
+      width: 28px; height: 28px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1rem;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .month-nav button:hover { background: rgba(255,255,255,0.1); }
+
+    .header-actions { display: flex; align-items: center; gap: 8px; }
+
+    .btn-backup {
+      background: none;
+      border: 1px solid rgba(255,255,255,0.35);
+      color: white;
+      padding: 6px 12px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 500;
+      display: flex; align-items: center; gap: 5px;
+      transition: background 0.15s;
+    }
+    .btn-backup:hover { background: rgba(255,255,255,0.12); }
+    .btn-restore {
+      background: none;
+      border: 1px solid rgba(255,255,255,0.35);
+      color: rgba(255,255,255,0.75);
+      padding: 6px 12px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 500;
+      display: flex; align-items: center; gap: 5px;
+      transition: background 0.15s;
+    }
+    .btn-restore:hover { background: rgba(255,255,255,0.1); color: white; }
+
+    /* Toast de notificação */
+    #toast {
+      position: fixed;
+      bottom: 24px; left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #1a1a2e;
+      color: white;
+      padding: 10px 22px;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+      transition: transform 0.3s ease, opacity 0.3s ease;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 999;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+    .tabs {
+      display: flex;
+      background: white;
+      border-bottom: 1px solid #dde1e7;
+      padding: 0 24px;
+    }
+
+    .tab {
+      padding: 12px 20px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: #666;
+      border-bottom: 3px solid transparent;
+      transition: all 0.15s;
+    }
+    .tab.active { color: #1a1a2e; border-bottom-color: #4f6ef7; }
+    .tab:hover:not(.active) { color: #333; }
+
+    .summary {
+      display: flex;
+      gap: 16px;
+      padding: 16px 24px;
+      flex-wrap: wrap;
+    }
+
+    .card {
+      background: white;
+      border-radius: 8px;
+      padding: 14px 20px;
+      flex: 1;
+      min-width: 160px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .card .label { font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
+    .card .value { font-size: 1.4rem; font-weight: 700; margin-top: 4px; }
+    .card .value.total   { color: #1a1a2e; }
+    .card .value.paid    { color: #22c55e; }
+    .card .value.pending { color: #f59e0b; }
+    .card .value.overdue { color: #ef4444; }
+
+    .container { padding: 0 24px 32px; }
+
+    /* ── Formulário de adição ── */
+    .add-form {
+      background: white;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: flex-end;
+    }
+
+    .form-group { display: flex; flex-direction: column; gap: 4px; }
+    .form-group label { font-size: 0.7rem; color: #888; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+
+    .add-form input, .add-form select {
+      padding: 7px 10px;
+      border: 1px solid #dde1e7;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      background: white;
+      outline: none;
+      height: 34px;
+    }
+    .add-form input:focus, .add-form select:focus { border-color: #4f6ef7; }
+
+    .fg-nome  input { width: 170px; }
+    .fg-valor input { width: 110px; }
+    .fg-dia   input { width: 70px; }
+    .fg-cat   input { width: 140px; }
+    .fg-tipo  select { width: 120px; }
+
+    .btn-add {
+      background: #4f6ef7;
+      color: white;
+      border: none;
+      padding: 7px 18px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      height: 34px;
+      white-space: nowrap;
+      align-self: flex-end;
+    }
+    .btn-add:hover { background: #3a57e0; }
+
+    /* ── Tabela ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      font-size: 0.875rem;
+    }
+
+    thead th {
+      background: #f8f9fb;
+      padding: 10px 12px;
+      text-align: left;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #888;
+      border-bottom: 1px solid #eee;
+      font-weight: 600;
+    }
+
+    tbody tr { border-bottom: 1px solid #f0f2f5; transition: background 0.1s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #fafbff; }
+
+    /* Pago: highlight verde claro, sem riscar */
+    tbody tr.pago { background: #f0fdf4; }
+    tbody tr.pago td { color: #15803d; }
+    tbody tr.pago td.valor-col strong { color: #15803d; }
+    tbody tr.vencida td.desc { color: #ef4444; font-weight: 600; }
+
+    td { padding: 9px 12px; vertical-align: middle; }
+
+    /* ── Linha de edição inline ── */
+    tr.edit-row td { padding: 6px 6px; background: #fffbeb; }
+    tr.edit-row input, tr.edit-row select {
+      width: 100%;
+      padding: 5px 8px;
+      border: 1px solid #4f6ef7;
+      border-radius: 5px;
+      font-size: 0.82rem;
+      outline: none;
+      background: white;
+    }
+    .btn-salvar {
+      background: #4f6ef7;
+      color: white;
+      border: none;
+      padding: 5px 12px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .btn-salvar:hover { background: #3a57e0; }
+    .btn-cancelar {
+      background: none;
+      border: 1px solid #dde1e7;
+      color: #888;
+      padding: 5px 10px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+    .btn-cancelar:hover { border-color: #ef4444; color: #ef4444; }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .badge-pessoal  { background: #ede9fe; color: #7c3aed; }
+    .badge-empresa  { background: #dbeafe; color: #1d4ed8; }
+    .badge-status-pago     { background: #dcfce7; color: #15803d; }
+    .badge-status-pendente { background: #fef9c3; color: #a16207; }
+    .badge-status-vencida  { background: #fee2e2; color: #b91c1c; }
+
+    /* ── Valor a definir ── */
+    .valor-indefinido {
+      color: #d97706;
+      font-style: italic;
+      font-size: 0.82rem;
+    }
+
+    /* ── Botões de ação ── */
+    .btn-pagar {
+      background: #22c55e;
+      color: white;
+      border: none;
+      padding: 5px 13px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 600;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+    .btn-pagar:hover { background: #16a34a; }
+
+    .btn-desfazer {
+      background: none;
+      border: 1px solid #dde1e7;
+      color: #888;
+      padding: 5px 10px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: all 0.15s;
+    }
+    .btn-desfazer:hover { border-color: #f59e0b; color: #f59e0b; }
+
+    .btn-editar {
+      background: none;
+      border: 1px solid #dde1e7;
+      color: #4f6ef7;
+      padding: 5px 9px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: all 0.15s;
+    }
+    .btn-editar:hover { background: #eff2ff; border-color: #4f6ef7; }
+
+    .btn-excluir {
+      background: none;
+      border: none;
+      color: #ccc;
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 4px 6px;
+      border-radius: 4px;
+      transition: color 0.15s;
+    }
+    .btn-excluir:hover { color: #ef4444; }
+
+    .acoes { display: flex; gap: 5px; align-items: center; flex-wrap: nowrap; }
+
+    .empty {
+      text-align: center;
+      padding: 40px;
+      color: #bbb;
+      font-size: 0.9rem;
+    }
+
+    @media (max-width: 700px) {
+      header { flex-wrap: wrap; gap: 10px; }
+      .header-actions { flex-wrap: wrap; gap: 6px; }
+      .btn-backup, .btn-restore { font-size: 0.75rem; padding: 5px 9px; }
+      .summary { gap: 10px; }
+      .card { min-width: 120px; }
+      table { font-size: 0.78rem; }
+      td, thead th { padding: 7px 7px; }
+      .add-form { flex-direction: column; }
+      .add-form input, .add-form select, .btn-add { width: 100% !important; }
+      .fg-nome input, .fg-valor input, .fg-dia input, .fg-cat input, .fg-tipo select { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>💳 Contas Recorrentes</h1>
+  <div class="header-actions">
+    <div class="month-nav">
+      <button onclick="changeMonth(-1)">&#8249;</button>
+      <span id="currentMonthLabel"></span>
+      <button onclick="changeMonth(1)">&#8250;</button>
+    </div>
+    <button class="btn-backup"  onclick="exportarBackup()" title="Baixar backup JSON com todos os dados">💾 Backup</button>
+    <button class="btn-restore" onclick="document.getElementById('importFile').click()" title="Restaurar dados de um backup">📂 Restaurar</button>
+    <input type="file" id="importFile" accept=".json" style="display:none" onchange="importarBackup(event)" />
+  </div>
+</header>
+
+<div id="toast"></div>
+
+<div class="tabs">
+  <div class="tab active" onclick="setTab('todas')">Todas</div>
+  <div class="tab" onclick="setTab('pessoal')">Pessoal</div>
+  <div class="tab" onclick="setTab('empresa')">Empresa</div>
+</div>
+
+<div class="summary">
+  <div class="card"><div class="label">Total do mês</div><div class="value total" id="s-total">R$ 0,00</div></div>
+  <div class="card"><div class="label">Pago</div><div class="value paid" id="s-pago">R$ 0,00</div></div>
+  <div class="card"><div class="label">Pendente</div><div class="value pending" id="s-pendente">R$ 0,00</div></div>
+  <div class="card"><div class="label">Vencido</div><div class="value overdue" id="s-vencido">R$ 0,00</div></div>
+</div>
+
+<!-- datalist de categorias (atualizado dinamicamente) -->
+<datalist id="cat-list"></datalist>
+
+<div class="container">
+
+  <!-- Formulário de adição -->
+  <div class="add-form">
+    <div class="form-group fg-nome">
+      <label>Nome da conta</label>
+      <input type="text" id="in-nome" placeholder="Ex: Aluguel" />
+    </div>
+    <div class="form-group fg-valor">
+      <label>Valor (opcional)</label>
+      <input type="number" id="in-valor" placeholder="R$ 0,00" min="0" step="0.01" />
+    </div>
+    <div class="form-group fg-dia">
+      <label>Dia venc.</label>
+      <input type="number" id="in-dia" placeholder="Dia" min="1" max="31" />
+    </div>
+    <div class="form-group fg-cat">
+      <label>Categoria</label>
+      <input type="text" id="in-cat" placeholder="Categoria" list="cat-list" autocomplete="off" />
+    </div>
+    <div class="form-group fg-tipo">
+      <label>Tipo</label>
+      <select id="in-tipo">
+        <option value="pessoal">Pessoal</option>
+        <option value="empresa">Empresa</option>
+      </select>
+    </div>
+    <button class="btn-add" onclick="addConta()">+ Adicionar</button>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Descrição</th>
+        <th>Categoria</th>
+        <th>Tipo</th>
+        <th>Venc.</th>
+        <th>Valor do mês</th>
+        <th>Status</th>
+        <th>Ações</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <div class="empty" id="emptyMsg" style="display:none">Nenhuma conta encontrada para este filtro.</div>
+</div>
+
+<script>
+const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+const CAT_DEFAULT = ['Moradia','Alimentação','Transporte','Saúde','Educação','Assinatura','Impostos','Folha','Fornecedor','Outros'];
+
+let today     = new Date();
+let viewYear  = today.getFullYear();
+let viewMonth = today.getMonth();
+let activeTab = 'todas';
+let editingId = null; // id da linha em edição
+
+// ── Storage helpers ──────────────────────────────────────────────
+function skBase()  { return 'contas_base'; }
+function skMonth() { return `contas_${viewYear}_${viewMonth}`; }
+function skCats()  { return 'contas_cats'; }
+
+function loadBase()   { return JSON.parse(localStorage.getItem(skBase())  || '[]'); }
+function saveBase(a)  { localStorage.setItem(skBase(),  JSON.stringify(a)); }
+
+function loadMonth()  { return JSON.parse(localStorage.getItem(skMonth()) || '{}'); }
+function saveMonth(o) { localStorage.setItem(skMonth(), JSON.stringify(o)); }
+
+function loadCats()   {
+  const saved = JSON.parse(localStorage.getItem(skCats()) || '[]');
+  return [...new Set([...CAT_DEFAULT, ...saved])].sort();
+}
+function saveCat(cat) {
+  const custom = JSON.parse(localStorage.getItem(skCats()) || '[]');
+  if (!custom.includes(cat)) { custom.push(cat); localStorage.setItem(skCats(), JSON.stringify(custom)); }
+}
+
+// ── Dados ────────────────────────────────────────────────────────
+let baseContas = loadBase();
+let monthData  = migrateMonth(loadMonth()); // { [id]: { pago: bool, valorMes: number|null } }
+
+// Migra formato antigo { id: true } → { id: { pago: true, valorMes: null } }
+function migrateMonth(data) {
+  const out = {};
+  Object.keys(data).forEach(k => {
+    const v = data[k];
+    if (v === true || v === false) {
+      out[k] = { pago: !!v, valorMes: null };
+    } else if (v && typeof v === 'object') {
+      out[k] = v;
+    }
+  });
+  return out;
+}
+
+if (baseContas.length === 0) {
+  baseContas = [
+    { id: 1, nome: 'Aluguel',        valor: 2500,  dia: 5,  cat: 'Moradia',    tipo: 'pessoal' },
+    { id: 2, nome: 'Energia',        valor: null,  dia: 10, cat: 'Moradia',    tipo: 'pessoal' },
+    { id: 3, nome: 'Internet',       valor: 120,   dia: 12, cat: 'Assinatura', tipo: 'pessoal' },
+    { id: 4, nome: 'Plano de Saúde', valor: 620,   dia: 15, cat: 'Saúde',      tipo: 'pessoal' },
+    { id: 5, nome: 'Spotify',        valor: 22.90, dia: 20, cat: 'Assinatura', tipo: 'pessoal' },
+    { id: 6, nome: 'Prolabore',      valor: 8000,  dia: 5,  cat: 'Folha',      tipo: 'empresa' },
+    { id: 7, nome: 'Contador',       valor: 750,   dia: 10, cat: 'Fornecedor', tipo: 'empresa' },
+    { id: 8, nome: 'Servidor AWS',   valor: null,  dia: 1,  cat: 'Assinatura', tipo: 'empresa' },
+    { id: 9, nome: 'IPTU',           valor: 310,   dia: 25, cat: 'Impostos',   tipo: 'empresa' },
+  ];
+  saveBase(baseContas);
+}
+
+let nextId = baseContas.reduce((m, c) => Math.max(m, c.id), 0) + 1;
+
+// ── Utilitários ──────────────────────────────────────────────────
+function fmt(v) {
+  if (v == null || v === '' || isNaN(v)) return null;
+  return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function getValorMes(c) {
+  const md = monthData[c.id];
+  if (md && md.valorMes != null) return md.valorMes;
+  return c.valor;
+}
+
+function getStatus(c) {
+  if (monthData[c.id]?.pago) return 'pago';
+  const venc = new Date(viewYear, viewMonth, c.dia);
+  const now  = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  if (venc < now && (viewYear < today.getFullYear() || viewMonth <= today.getMonth())) return 'vencida';
+  return 'pendente';
+}
+
+function updateCatList() {
+  const dl = document.getElementById('cat-list');
+  dl.innerHTML = loadCats().map(c => `<option value="${c}">`).join('');
+}
+
+// ── Ações ────────────────────────────────────────────────────────
+function setTab(t) {
+  activeTab = t;
+  document.querySelectorAll('.tab').forEach((el, i) => {
+    el.classList.toggle('active', ['todas','pessoal','empresa'][i] === t);
+  });
+  render();
+}
+
+function changeMonth(d) {
+  editingId = null;
+  viewMonth += d;
+  if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+  if (viewMonth < 0)  { viewMonth = 11; viewYear--; }
+  monthData = migrateMonth(loadMonth());
+  render();
+}
+
+function addConta() {
+  const nome  = document.getElementById('in-nome').value.trim();
+  const valorRaw = document.getElementById('in-valor').value;
+  const valor = valorRaw !== '' ? parseFloat(valorRaw) : null;
+  const dia   = parseInt(document.getElementById('in-dia').value);
+  const cat   = document.getElementById('in-cat').value.trim() || 'Outros';
+  const tipo  = document.getElementById('in-tipo').value;
+
+  if (!nome) { alert('Informe o nome da conta.'); return; }
+  if (isNaN(dia) || dia < 1 || dia > 31) { alert('Informe um dia de vencimento válido (1-31).'); return; }
+  if (valor !== null && (isNaN(valor) || valor < 0)) { alert('Valor inválido.'); return; }
+
+  saveCat(cat);
+  baseContas.push({ id: nextId++, nome, valor, dia, cat, tipo });
+  saveBase(baseContas);
+
+  document.getElementById('in-nome').value  = '';
+  document.getElementById('in-valor').value = '';
+  document.getElementById('in-dia').value   = '';
+  document.getElementById('in-cat').value   = '';
+  updateCatList();
+  render();
+}
+
+function pagar(id) {
+  // Garante que sempre é um objeto (corrige dados legados no formato primitivo)
+  if (typeof monthData[id] !== 'object' || monthData[id] === null) {
+    monthData[id] = { pago: false, valorMes: null };
+  }
+  monthData[id].pago = true;
+  saveMonth(monthData);
+  render();
+}
+
+function desfazer(id) {
+  if (typeof monthData[id] !== 'object' || monthData[id] === null) {
+    monthData[id] = { pago: false, valorMes: null };
+  } else {
+    monthData[id].pago = false;
+  }
+  saveMonth(monthData);
+  render();
+}
+
+function excluir(id) {
+  if (!confirm('Remover esta conta recorrente?')) return;
+  baseContas = baseContas.filter(c => c.id !== id);
+  saveBase(baseContas);
+  delete monthData[id];
+  saveMonth(monthData);
+  render();
+}
+
+function editarLinha(id) {
+  editingId = id;
+  render();
+}
+
+function cancelarEdicao() {
+  editingId = null;
+  render();
+}
+
+function salvarEdicao(id) {
+  const nome     = document.getElementById(`e-nome-${id}`).value.trim();
+  const valorRaw = document.getElementById(`e-valor-${id}`).value;
+  const valor    = valorRaw !== '' ? parseFloat(valorRaw) : null;
+  const dia      = parseInt(document.getElementById(`e-dia-${id}`).value);
+  const cat      = document.getElementById(`e-cat-${id}`).value.trim() || 'Outros';
+  const tipo     = document.getElementById(`e-tipo-${id}`).value;
+  const valorMesRaw = document.getElementById(`e-valormes-${id}`).value;
+  const valorMes = valorMesRaw !== '' ? parseFloat(valorMesRaw) : null;
+
+  if (!nome) { alert('Informe o nome.'); return; }
+  if (isNaN(dia) || dia < 1 || dia > 31) { alert('Dia inválido.'); return; }
+
+  // Atualiza base
+  const c = baseContas.find(x => x.id === id);
+  if (c) { c.nome = nome; c.valor = valor; c.dia = dia; c.cat = cat; c.tipo = tipo; }
+  saveBase(baseContas);
+  saveCat(cat);
+
+  // Atualiza override do mês
+  if (!monthData[id]) monthData[id] = {};
+  monthData[id].valorMes = valorMes;
+  saveMonth(monthData);
+
+  editingId = null;
+  updateCatList();
+  render();
+}
+
+// ── Toast ────────────────────────────────────────────────────────
+let toastTimer = null;
+function showToast(msg, duration = 3000) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), duration);
+}
+
+// ── Backup & Restauração ─────────────────────────────────────────
+function exportarBackup() {
+  // Coleta todas as chaves do localStorage relacionadas ao app
+  const backup = { version: 2, exportedAt: new Date().toISOString(), data: {} };
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key.startsWith('contas_')) {
+      try { backup.data[key] = JSON.parse(localStorage.getItem(key)); }
+      catch { backup.data[key] = localStorage.getItem(key); }
+    }
+  }
+
+  const json = JSON.stringify(backup, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const date = new Date().toISOString().slice(0, 10);
+  a.href     = url;
+  a.download = `contas-backup-${date}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('✅ Backup baixado com sucesso!');
+}
+
+function importarBackup(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const backup = JSON.parse(e.target.result);
+
+      // Suporta formato novo { version, data: {...} } e formato legado { contas_*: ... }
+      const entries = backup.version && backup.data ? backup.data : backup;
+
+      const keys = Object.keys(entries).filter(k => k.startsWith('contas_'));
+      if (keys.length === 0) { alert('Arquivo inválido: nenhum dado de contas encontrado.'); return; }
+
+      if (!confirm(`Restaurar backup de ${backup.exportedAt ? new Date(backup.exportedAt).toLocaleString('pt-BR') : 'data desconhecida'}?\n\nIsso vai SUBSTITUIR os dados atuais.`)) return;
+
+      keys.forEach(k => localStorage.setItem(k, JSON.stringify(entries[k])));
+
+      // Recarrega tudo em memória
+      baseContas = loadBase();
+      monthData  = migrateMonth(loadMonth());
+      nextId     = baseContas.reduce((m, c) => Math.max(m, c.id), 0) + 1;
+      updateCatList();
+      render();
+      showToast('✅ Backup restaurado com sucesso!');
+    } catch (err) {
+      alert('Erro ao ler o arquivo de backup: ' + err.message);
+    }
+    // Limpa o input para permitir importar o mesmo arquivo novamente
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+// ── Render ───────────────────────────────────────────────────────
+function render() {
+  document.getElementById('currentMonthLabel').textContent = `${MESES[viewMonth]} ${viewYear}`;
+  updateCatList();
+
+  let lista = activeTab === 'todas' ? baseContas : baseContas.filter(c => c.tipo === activeTab);
+  lista = [...lista].sort((a, b) => a.dia - b.dia);
+
+  let total = 0, totalPago = 0, totalPendente = 0, totalVencido = 0;
+
+  (activeTab === 'todas' ? baseContas : baseContas.filter(c => c.tipo === activeTab)).forEach(c => {
+    const v = getValorMes(c) ?? 0;
+    total += v;
+    const s = getStatus(c);
+    if (s === 'pago')        totalPago     += v;
+    else if (s === 'vencida') totalVencido += v;
+    else                     totalPendente += v;
+  });
+
+  document.getElementById('s-total').textContent    = fmt(total)    ?? 'R$ 0,00';
+  document.getElementById('s-pago').textContent     = fmt(totalPago)     ?? 'R$ 0,00';
+  document.getElementById('s-pendente').textContent = fmt(totalPendente) ?? 'R$ 0,00';
+  document.getElementById('s-vencido').textContent  = fmt(totalVencido)  ?? 'R$ 0,00';
+
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+
+  if (lista.length === 0) {
+    document.getElementById('emptyMsg').style.display = '';
+    return;
+  }
+  document.getElementById('emptyMsg').style.display = 'none';
+
+  lista.forEach(c => {
+    const status    = getStatus(c);
+    const valorMes  = getValorMes(c);
+    const mdValorMes = monthData[c.id]?.valorMes ?? '';
+
+    if (editingId === c.id) {
+      // ── Linha de edição ──
+      const tr = document.createElement('tr');
+      tr.classList.add('edit-row');
+      const cats = loadCats();
+      tr.innerHTML = `
+        <td>
+          <input id="e-nome-${c.id}" type="text" value="${escHtml(c.nome)}" placeholder="Nome" />
+        </td>
+        <td>
+          <input id="e-cat-${c.id}" type="text" value="${escHtml(c.cat)}" list="cat-list" placeholder="Categoria" autocomplete="off" />
+        </td>
+        <td>
+          <select id="e-tipo-${c.id}">
+            <option value="pessoal" ${c.tipo==='pessoal'?'selected':''}>Pessoal</option>
+            <option value="empresa" ${c.tipo==='empresa'?'selected':''}>Empresa</option>
+          </select>
+        </td>
+        <td>
+          <input id="e-dia-${c.id}" type="number" value="${c.dia}" min="1" max="31" placeholder="Dia" style="width:60px" />
+        </td>
+        <td>
+          <input id="e-valormes-${c.id}" type="number" value="${mdValorMes}" placeholder="Mês atual" min="0" step="0.01" style="width:110px; border-color:#f59e0b" title="Valor deste mês (sobrepõe o padrão)" />
+          <div style="font-size:0.68rem;color:#aaa;margin-top:2px">Padrão: <input id="e-valor-${c.id}" type="number" value="${c.valor??''}" placeholder="padrão" min="0" step="0.01" style="width:90px;font-size:0.75rem;height:24px;border-color:#dde1e7" /></div>
+        </td>
+        <td colspan="2">
+          <div style="display:flex;gap:6px">
+            <button class="btn-salvar" onclick="salvarEdicao(${c.id})">✓ Salvar</button>
+            <button class="btn-cancelar" onclick="cancelarEdicao()">Cancelar</button>
+          </div>
+        </td>
+        <td></td>
+      `;
+      tbody.appendChild(tr);
+      return;
+    }
+
+    // ── Linha normal ──
+    const badgeTipo = c.tipo === 'pessoal'
+      ? '<span class="badge badge-pessoal">Pessoal</span>'
+      : '<span class="badge badge-empresa">Empresa</span>';
+
+    const badgeStatus =
+      status === 'pago'    ? '<span class="badge badge-status-pago">✓ Pago</span>'  :
+      status === 'vencida' ? '<span class="badge badge-status-vencida">Vencido</span>' :
+                             '<span class="badge badge-status-pendente">Pendente</span>';
+
+    const valorDisplay = valorMes != null && !isNaN(valorMes)
+      ? `<strong>${fmt(valorMes)}</strong>${monthData[c.id]?.valorMes != null ? ' <span style="font-size:0.7rem;color:#4f6ef7" title="Valor específico deste mês">★</span>' : ''}`
+      : `<span class="valor-indefinido">A definir</span>`;
+
+    const acaoBtns = status === 'pago'
+      ? `<button class="btn-desfazer" onclick="desfazer(${c.id})">Desfazer</button>`
+      : `<button class="btn-pagar"   onclick="pagar(${c.id})">Pagar</button>`;
+
+    const tr = document.createElement('tr');
+    if (status === 'pago')    tr.classList.add('pago');
+    if (status === 'vencida') tr.classList.add('vencida');
+
+    tr.innerHTML = `
+      <td class="desc">${status === 'pago' ? '✅ ' : ''}${escHtml(c.nome)}</td>
+      <td>${escHtml(c.cat)}</td>
+      <td>${badgeTipo}</td>
+      <td>Dia ${String(c.dia).padStart(2,'0')}</td>
+      <td class="valor-col">${valorDisplay}</td>
+      <td>${badgeStatus}</td>
+      <td>
+        <div class="acoes">
+          ${acaoBtns}
+          <button class="btn-editar" onclick="editarLinha(${c.id})" title="Editar">✏️</button>
+        </div>
+      </td>
+      <td><button class="btn-excluir" onclick="excluir(${c.id})" title="Remover">✕</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function escHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+render();
+</script>
+</body>
+</html>
