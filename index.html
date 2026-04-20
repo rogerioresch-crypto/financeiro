@@ -654,14 +654,19 @@ function exportarBackup() {
   }
 
   const json = JSON.stringify(backup, null, 2);
+  const date = new Date().toISOString().slice(0, 10);
   const blob = new Blob([json], { type: 'application/json' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
-  const date = new Date().toISOString().slice(0, 10);
   a.href     = url;
   a.download = `contas-backup-${date}.json`;
+  a.style.display = 'none';
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 1000);
   showToast('✅ Backup baixado com sucesso!');
 }
 
