@@ -649,30 +649,19 @@ function exportarBackup() {
   }
 
   const json = JSON.stringify(backup, null, 2);
-  const date = new Date().toISOString().slice(0, 10);
-  const filename = `contas-backup-${date}.json`;
 
-  // Tenta download via <a download> com Blob
-  try {
-    const blob = new Blob([json], { type: 'application/octet-stream' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
-    a.download = filename;
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 500);
-  } catch(e) {
-    // Fallback: abre como texto para o usuário salvar manualmente
-    const w = window.open('', '_blank');
-    if (w) {
-      w.document.write('<pre>' + json.replace(/</g,'&lt;') + '</pre>');
-      w.document.title = filename;
-    }
-  }
-
-  showToast('✅ Backup gerado! Salve o arquivo com Cmd+S se necessário.');
+  navigator.clipboard.writeText(json)
+    .then(() => showToast('✅ Backup copiado! Cole num arquivo .txt e salve.'))
+    .catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = json;
+      ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+      document.body.appendChild(ta);
+      ta.focus(); ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showToast('✅ Backup copiado! Cole num arquivo .txt e salve.');
+    });
 }
 
 function importarBackup(event) {
